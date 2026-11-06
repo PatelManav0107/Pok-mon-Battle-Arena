@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pokémon Battle Arena - Online Multiplayer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Press+Start+2P&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font-display: 'Fredoka', sans-serif;
+      --font-retro: 'Press Start 2P', monospace;
+      --font-sans: 'Inter', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-sans);
+      background: radial-gradient(circle at 50% 20%, #2563eb 0%, #1e1b4b 70%, #0f172a 100%);
+      color: #1e293b;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .font-display { font-family: var(--font-display); }
+    .font-retro { font-family: var(--font-retro); }
+
+    /* Battle Scene Base & Platform Rings */
+    .battle-scene {
+      background:
+        radial-gradient(circle at 82% 18%, rgba(254, 249, 195, 0.85) 0%, rgba(254, 240, 138, 0.25) 14%, transparent 32%),
+        linear-gradient(180deg, #38bdf8 0%, #7dd3fc 34%, #bae6fd 46%, #86efac 46.5%, #4ade80 68%, #22c55e 88%, #16a34a 100%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 50px rgba(15, 23, 42, 0.22);
+      transition: background 0.6s ease;
+    }
+
+    .platform {
+      border-radius: 50%;
+      position: relative;
+      transition: transform 0.3s ease, background 0.6s ease;
+    }
+
+    .platform-enemy {
+      background: radial-gradient(ellipse at center, #dcfce7 0%, #4ade80 48%, #16a34a 75%, #14532d 100%);
+      border: 4px solid #f0fdf4;
+      box-shadow: 0 7px 0 #14532d, 0 14px 24px rgba(0, 0, 0, 0.32), inset 0 2px 8px rgba(255, 255, 255, 0.65);
+    }
+
+    .platform-player {
+      background: radial-gradient(ellipse at center, #dcfce7 0%, #4ade80 50%, #15803d 78%, #14532d 100%);
+      border: 5px solid #f0fdf4;
+      box-shadow: 0 9px 0 #14532d, 0 18px 28px rgba(0, 0, 0, 0.38), inset 0 3px 10px rgba(255, 255, 255, 0.7);
+    }
+
+    .platform::after {
+      content: '';
+      position: absolute;
+      inset: 14% 10%;
+      border-radius: 50%;
+      border: 2px dashed rgba(255, 255, 255, 0.55);
+      pointer-events: none;
+    }
+
+    /* Sprite rendering */
+    .poke-sprite {
+      image-rendering: pixelated;
+      filter: drop-shadow(0 10px 7px rgba(0,0,0,0.38));
+      transition: opacity 0.25s ease;
+    }
+
+    .poke-idle-actor {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      transform-origin: 50% 85%;
+      will-change: transform, filter;
+    }
+
+    /* Idle Signature Animations */
+    @keyframes floatIdle { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
+    .idle-6 { animation: floatIdle 2.4s ease-in-out infinite; }
+    .idle-25 { animation: floatIdle 1.4s ease-in-out infinite; }
+    .idle-150 { animation: floatIdle 2.2s ease-in-out infinite; }
+    .idle-448 { animation: floatIdle 2.0s ease-in-out infinite; }
+    .idle-384 { animation: floatIdle 2.5s ease-in-out infinite; }
+
+    /* Low HP States */
+    .low-hp-slow {
+      animation-duration: 4.8s !important;
+      filter: drop-shadow(0 6px 6px rgba(225, 29, 72, 0.45)) saturate(0.85) !important;
+    }
+
+    @keyframes lowHpBarBlink {
+      0%, 100% { background-color: #ef4444; box-shadow: 0 0 10px #ef4444; }
+      50% { background-color: #7f1d1d; box-shadow: 0 0 2px #7f1d1d; }
+    }
+    .hp-bar-low-blink { animation: lowHpBarBlink 0.65s ease-in-out infinite !important; }
+
+    /* Faint Animation */
+    @keyframes faintGrayDrop {
+      0% { transform: translateY(0) scale(1); filter: grayscale(0%); opacity: 1; }
+      100% { transform: translateY(56px) scale(0.82, 0.65); filter: grayscale(100%); opacity: 0; }
+    }
+    .anim-faint { animation: faintGrayDrop 0.75s forwards !important; }
+
+    /* Pokéball props */
+    .pokeball-prop {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 3px solid #0f172a;
+      background: linear-gradient(180deg, #ef4444 0%, #ef4444 46%, #0f172a 46%, #0f172a 54%, #ffffff 54%, #ffffff 100%);
+      position: absolute; z-index: 40;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45); pointer-events: none;
+    }
+    .burst-ring { position: absolute; border-radius: 50%; pointer-events: none; z-index: 38; transform: translate(-50%, -50%); }
+
+    /* Screen Shakes */
+    @keyframes screenShakeHeavy {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(-10px, 6px); }
+      40% { transform: translate(10px, -6px); }
+      60% { transform: translate(-8px, -4px); }
+      80% { transform: translate(6px, 4px); }
+    }
+    @keyframes screenShakeLight {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(-4px, 3px); }
+    }
+    .scene-shake-heavy { animation: screenShakeHeavy 0.6s ease-in-out; }
+    .scene-shake-light { animation: screenShakeLight 0.35s ease-in-out; }
+
+    /* HUD Card Styling */
+    .hud-card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.96) 100%);
+      border: 3px solid #0f172a;
+      border-radius: 16px;
+      box-shadow: 0 6px 0 #0f172a, 0 12px 24px rgba(0,0,0,0.28);
+      position: relative;
+    }
+
+    .btn-3d { transition: transform 0.1s ease, box-shadow 0.1s ease; }
+    .btn-3d:active:not(:disabled) { transform: translateY(3px); }
+
+    .keycap-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 20px; height: 20px; padding: 0 5px; border-radius: 5px;
+      font-family: var(--font-sans); font-size: 10px; font-weight: 900;
+      background: rgba(15, 23, 42, 0.85); color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+    }
+
+    /* Ultimate Overdrive Animations */
+    @keyframes ultReadyPulse {
+      0%, 100% { box-shadow: 0 5px 0 #78350f, 0 0 18px rgba(250, 204, 21, 0.75); }
+      50% { box-shadow: 0 5px 0 #78350f, 0 0 28px rgba(244, 63, 94, 0.95); }
+    }
+    .ult-btn-ready { animation: ultReadyPulse 1.35s ease-in-out infinite; }
+
+    @keyframes cutinSlashBand {
+      0% { transform: translateX(-120%) skewX(-16deg); opacity: 0; }
+      20% { transform: translateX(0%) skewX(-16deg); opacity: 1; }
+      80% { transform: translateX(0%) skewX(-16deg); opacity: 1; }
+      100% { transform: translateX(120%) skewX(-16deg); opacity: 0; }
+    }
+    .ult-cutin-band-anim { animation: cutinSlashBand 1.88s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    @keyframes cutinPortraitZoom {
+      0% { transform: scale(0.4) rotate(-12deg); opacity: 0; }
+      25% { transform: scale(1.18) rotate(2deg); opacity: 1; }
+      75% { transform: scale(1.24) rotate(0deg); opacity: 1; }
+      100% { transform: scale(1.5) rotate(8deg); opacity: 0; }
+    }
+    .ult-cutin-portrait-anim { animation: cutinPortraitZoom 1.88s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-2 sm:p-4">
+
+  <!-- Main Container -->
+  <div id="app" class="w-full max-w-4xl bg-slate-900 border-4 border-slate-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative">
+
+    <!-- Top Header -->
+    <header class="bg-gradient-to-r from-red-600 via-red-500 to-amber-500 px-4 py-2.5 flex items-center justify-between border-b-4 border-slate-800">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-full bg-white border-2 border-slate-900 relative flex items-center justify-center overflow-hidden shadow">
+          <div class="absolute top-0 left-0 right-0 h-1/2 bg-red-500 border-b-2 border-slate-900"></div>
+          <div class="w-2.5 h-2.5 rounded-full bg-white border-2 border-slate-900 z-10"></div>
+        </div>
+        <h1 class="font-display text-white font-bold text-lg sm:text-xl tracking-wide drop-shadow">
+          POKÉMON BATTLE ARENA
+        </h1>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span id="modeBadge" class="hidden sm:inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-900/40 text-white border border-white/20">
+          Title Screen
+        </span>
+        <button id="f3DebugToggleBtn" class="px-2 py-1 rounded-xl bg-slate-900/40 hover:bg-slate-900/70 text-emerald-300 text-xs font-mono font-bold border border-emerald-400/30">
+          F3 Ping
+        </button>
+        <button id="soundToggleBtn" class="px-2.5 py-1 rounded-xl bg-slate-900/30 hover:bg-slate-900/50 text-white text-xs font-bold border border-white/25 flex items-center gap-1.5 transition">
+          <span id="soundIcon">🔊</span>
+          <span id="soundLabel" class="hidden sm:inline">SFX ON</span>
+        </button>
+        <button id="homeBtn" class="hidden px-2.5 py-1 rounded-xl bg-slate-900/40 hover:bg-slate-900/70 text-white text-xs font-bold border border-white/25 transition">
+          🏠 Menu
+        </button>
+      </div>
+    </header>
+
+    <!-- Screen 1: Start Menu -->
+    <section id="startScreen"></section>
+
+    <!-- Screen 2: Online Lobby -->
+    <section id="lobbyScreen" class="hidden"></section>
+
+    <!-- Screen 3: Draft Screen -->
+    <section id="draftScreen" class="hidden"></section>
+
+    <!-- Screen 4: Battle Screen -->
+    <section id="battleScreen" class="hidden flex flex-col">
+      <!-- 4-Quadrant Battle Field -->
+      <div id="battleSceneContainer" class="battle-scene w-full h-[340px] sm:h-[400px] relative select-none overflow-hidden">
+        <canvas id="battleFxCanvas" class="absolute inset-0 w-full h-full pointer-events-none z-30"></canvas>
+        <div id="pokeballFxLayer" class="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-hidden"></div>
+
+        <!-- QUADRANT 1 (TOP-LEFT): Opponent Status HUD -->
+        <div class="absolute top-3 left-3 sm:top-4 sm:left-5 z-20">
+          <div class="hud-card hud-card-enemy w-[215px] sm:w-[285px] p-2.5 sm:p-3.5">
+            <div class="flex items-center justify-between gap-1.5 mb-1">
+              <div class="flex items-baseline gap-1.5 truncate">
+                <span id="enemyName" class="font-display font-bold text-slate-900 text-base sm:text-xl truncate">Charizard</span>
+                <span class="text-[11px] font-extrabold text-slate-500 shrink-0">Lv.50</span>
+                <span id="enemyLowHpBadge" class="hidden text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-600 text-white animate-pulse">LOW HP</span>
+              </div>
+              <div id="enemyBalls" class="flex items-center gap-1 shrink-0"></div>
+            </div>
+            <div id="enemyTypes" class="flex flex-wrap gap-1 mb-2"></div>
+            <div class="bg-slate-900 rounded-full p-1 border border-slate-950 shadow-inner">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] font-black text-amber-400 px-1.5 tracking-tighter">HP</span>
+                <div class="w-full h-3 sm:h-3.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div id="enemyHpBar" class="hp-bar-fill h-full bg-emerald-500 rounded-full" style="width: 100%;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-between items-center mt-1.5 text-[11px] font-extrabold text-slate-700 px-1">
+              <span id="enemyOwnerLabel" class="uppercase tracking-wider text-slate-400 text-[10px]">Opponent</span>
+              <span id="enemyHpText" class="font-mono text-slate-800">160 / 160 HP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- QUADRANT 2 (TOP-RIGHT): Opponent Sprite & Platform -->
+        <div class="absolute top-[22px] sm:top-[28px] right-[5%] sm:right-[9%] z-10 flex flex-col items-center pointer-events-none">
+          <div id="enemySpriteWrap" class="relative z-10 w-32 h-32 sm:w-44 sm:h-44 flex items-center justify-center -mb-6 sm:-mb-8">
+            <div id="enemyIdleActor" class="poke-idle-actor idle-6">
+              <img id="enemySprite" src="" alt="Enemy Pokémon" class="w-32 h-32 sm:w-44 sm:h-44 object-contain poke-sprite" />
+              <div id="enemyFallback" class="hidden w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg flex flex-col items-center justify-center text-white font-display font-bold text-center p-2 text-xs"></div>
+            </div>
+          </div>
+          <div class="platform platform-enemy w-40 sm:w-56 h-10 sm:h-14"></div>
+        </div>
+
+        <!-- QUADRANT 3 (BOTTOM-LEFT): Player Sprite & Platform -->
+        <div class="absolute bottom-[10px] sm:bottom-[14px] left-[5%] sm:left-[9%] z-10 flex flex-col items-center pointer-events-none">
+          <div id="playerSpriteWrap" class="relative z-10 w-36 h-36 sm:w-48 sm:h-48 flex items-center justify-center -mb-7 sm:-mb-9">
+            <div id="playerIdleActor" class="poke-idle-actor idle-25">
+              <img id="playerSprite" src="" alt="Player Pokémon" class="w-36 h-36 sm:w-48 sm:h-48 object-contain poke-sprite" />
+              <div id="playerFallback" class="hidden w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg flex flex-col items-center justify-center text-white font-display font-bold text-center p-2 text-xs"></div>
+            </div>
+          </div>
+          <div class="platform platform-player w-44 sm:w-64 h-12 sm:h-16"></div>
+        </div>
+
+        <!-- QUADRANT 4 (BOTTOM-RIGHT): Player Status HUD -->
+        <div class="absolute bottom-3 right-3 sm:bottom-4 sm:right-5 z-20">
+          <div class="hud-card hud-card-player w-[215px] sm:w-[295px] p-2.5 sm:p-3.5">
+            <div class="flex items-center justify-between gap-1.5 mb-1">
+              <div class="flex items-baseline gap-1.5 truncate">
+                <span id="playerName" class="font-display font-bold text-slate-900 text-base sm:text-xl truncate">Pikachu</span>
+                <span class="text-[11px] font-extrabold text-slate-500 shrink-0">Lv.50</span>
+                <span id="playerLowHpBadge" class="hidden text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-600 text-white animate-pulse">LOW HP</span>
+              </div>
+              <div id="playerBalls" class="flex items-center gap-1 shrink-0"></div>
+            </div>
+            <div id="playerTypes" class="flex flex-wrap gap-1 mb-2"></div>
+            <div class="bg-slate-900 rounded-full p-1 border border-slate-950 shadow-inner">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] font-black text-amber-400 px-1.5 tracking-tighter">HP</span>
+                <div class="w-full h-3 sm:h-3.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div id="playerHpBar" class="hp-bar-fill h-full bg-emerald-500 rounded-full" style="width: 100%;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-between items-center mt-1.5 text-[11px] font-extrabold text-slate-700 px-1">
+              <span id="playerOwnerLabel" class="uppercase tracking-wider text-slate-400 text-[10px]">You</span>
+              <span id="playerHpText" class="font-mono text-slate-800">120 / 120 HP</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lower Command Deck -->
+      <div class="bg-slate-900 border-t-4 border-slate-800 p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+        <!-- Battle Log Box -->
+        <div class="lg:col-span-5 bg-slate-950 border-2 border-slate-700 rounded-2xl p-3.5 shadow-inner flex flex-col justify-between min-h-[140px] lg:min-h-[196px] max-h-[215px]">
+          <div class="flex items-start justify-between gap-2 border-b border-slate-800 pb-2 mb-1.5">
+            <div id="battleHeadline" class="font-display text-amber-300 text-sm sm:text-base font-bold leading-snug truncate">
+              Battle Start!
+            </div>
+            <span id="turnCounterBadge" class="shrink-0 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-slate-700">
+              Round 1
+            </span>
+          </div>
+          <div id="battleLogScroll" class="overflow-y-auto text-xs sm:text-sm text-slate-300 space-y-1.5 pr-1 flex-1"></div>
+          <div class="pt-1.5 mt-1 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-400">
+            <span>⌨️ Keys: <strong class="text-slate-200">[1-4]</strong> Moves</span>
+            <span><strong class="text-amber-300">[U / Space]</strong> Ultimate</span>
+            <span><strong class="text-indigo-300">[S]</strong> Switch</span>
+          </div>
+        </div>
+
+        <!-- Action Controls -->
+        <div class="lg:col-span-7 min-h-[196px] flex flex-col justify-center">
+          <div id="movePanel" class="flex flex-col gap-2.5 h-full">
+            <div class="flex flex-col sm:flex-row gap-2.5 flex-1">
+              <div id="moveButtonsGrid" class="grid grid-cols-2 gap-2.5 flex-1"></div>
+              <button id="openSwitchBtn" class="btn-3d sm:w-32 py-2.5 px-3 rounded-2xl bg-gradient-to-b from-indigo-500 to-indigo-700 hover:from-indigo-400 text-white border-2 border-indigo-300 shadow-[0_5px_0_#312e81] flex sm:flex-col items-center justify-center gap-1 font-display font-bold">
+                <span class="text-xl">🔄</span>
+                <span class="leading-tight text-sm">SWITCH [S]</span>
+              </button>
+            </div>
+            <div id="ultimateButtonContainer" class="w-full"></div>
+          </div>
+
+          <!-- Switch Drawer -->
+          <div id="switchPanel" class="hidden flex-col gap-2.5">
+            <div class="flex items-center justify-between px-1">
+              <span id="switchPromptTitle" class="text-xs sm:text-sm font-extrabold uppercase text-amber-400">
+                Choose a Pokémon:
+              </span>
+              <button id="cancelSwitchBtn" class="px-3 py-1 rounded-lg bg-slate-800 text-slate-200 text-xs font-bold border border-slate-600">
+                ✕ Back [S]
+              </button>
+            </div>
+            <div id="switchTeamGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Full-Screen Anime Ultimate Cut-In Overlay -->
+    <div id="ultCutsceneOverlay" class="hidden fixed inset-0 z-[60] pointer-events-none overflow-hidden flex items-center justify-center">
+      <div class="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px]"></div>
+      <canvas id="ultCutsceneCanvas" class="absolute inset-0 w-full h-full"></canvas>
+
+      <div class="absolute top-0 left-0 right-0 h-14 bg-black border-b-2 border-amber-400/60 z-10 flex items-center justify-between px-6">
+        <span id="ultCutsceneTrainerTag" class="font-retro text-[10px] text-amber-400 tracking-widest uppercase">ULTIMATE OVERDRIVE</span>
+        <span class="font-retro text-[10px] text-rose-400 tracking-widest animate-pulse">★ MAX POWER UNLEASHED ★</span>
+      </div>
+      <div class="absolute bottom-0 left-0 right-0 h-14 bg-black border-t-2 border-amber-400/60 z-10 flex items-center justify-between px-6">
+        <span id="ultCutsceneQuoteTag" class="text-xs font-bold italic text-slate-300">"Witness true elemental mastery!"</span>
+        <span id="ultCutscenePowerTag" class="font-display font-extrabold text-sm text-amber-300">POWER 155</span>
+      </div>
+
+      <div id="ultCutsceneBand" class="relative z-20 w-[115%] max-w-5xl py-7 px-8 border-y-4 border-white shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 overflow-hidden ult-cutin-band-anim">
+        <div id="ultCutscenePortraitWrap" class="relative flex items-center justify-center shrink-0 ult-cutin-portrait-anim">
+          <div id="ultCutsceneAuraGlow" class="absolute w-40 h-40 rounded-full blur-xl opacity-80 bg-amber-300"></div>
+          <img id="ultCutsceneSpriteShadow" src="" alt="" class="absolute w-40 h-40 object-contain poke-sprite opacity-40 scale-125 -translate-x-4 brightness-200" />
+          <img id="ultCutsceneSprite" src="" alt="Ultimate Pokémon" class="relative z-10 w-40 h-40 object-contain poke-sprite" />
+        </div>
+        <div id="ultCutsceneTitleWrap" class="relative z-10 text-center sm:text-right flex-1 ult-cutin-title-anim">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/75 border border-amber-300 text-amber-300 font-retro text-[10px] uppercase mb-2">
+            <span id="ultCutscenePokeName">CHARIZARD</span>
+            <span id="ultCutsceneTypeBadge" class="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-sans font-black text-[10px]">FIRE</span>
+          </div>
+          <div id="ultCutsceneMoveName" class="font-display font-black text-3xl sm:text-6xl text-white uppercase tracking-tight leading-none">
+            INFERNO OVERDRIVE
+          </div>
+          <div id="ultCutsceneSubtitle" class="font-display font-bold text-sm sm:text-xl text-amber-200 uppercase tracking-widest mt-1.5">
+            Crimson Dragon Supernova
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Over / Rematch Modal -->
+    <div id="gameOverModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+      <canvas id="confettiCanvas" class="absolute inset-0 w-full h-full pointer-events-none z-10"></canvas>
+      <div class="relative z-20 bg-slate-900 border-4 border-amber-400 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl flex flex-col items-center">
+        <div id="winnerTrophy" class="text-6xl mb-3">🏆</div>
+        <h2 id="winnerTitle" class="font-display text-3xl font-bold text-white mb-2">Battle Result</h2>
+        <p id="winnerSubtitle" class="text-slate-300 text-sm mb-6"></p>
+        <div class="flex gap-3 w-full">
+          <button id="rematchBtn" class="btn-3d flex-1 py-3 rounded-2xl bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 font-display font-bold text-base border-2 border-amber-200 shadow-[0_4px_0_#b45309]">
+            🔄 Rematch
+          </button>
+          <button id="returnMenuBtn" class="btn-3d py-3 px-5 rounded-2xl bg-slate-700 text-white font-display font-bold text-base border-2 border-slate-500 shadow-[0_4px_0_#334155]">
+            🏠 Menu
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- F3 Debug Overlay Container -->
+    <div id="debugOverlay" class="hidden fixed bottom-4 right-4 z-[70]"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
