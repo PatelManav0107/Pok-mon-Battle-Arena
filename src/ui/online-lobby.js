@@ -37,6 +37,14 @@ export class OnlineLobby {
     this.render();
   }
 
+  checkCountdown() {
+    if (this.p1.ready && this.p2.ready && !this.countdownTimer) {
+      this.startCountdown();
+    } else if ((!this.p1.ready || !this.p2.ready) && this.countdownTimer) {
+      this.cancelCountdown();
+    }
+  }
+
   updateLobbyState(state) {
     if (state.settings && this.role !== 'HOST') {
       this.settings = { ...this.settings, ...state.settings };
@@ -45,13 +53,7 @@ export class OnlineLobby {
     if (state.p2) this.p2 = { ...this.p2, ...state.p2 };
     if (state.spectatorCount !== undefined) this.spectatorCount = state.spectatorCount;
 
-    // Check if both ready
-    if (this.p1.ready && this.p2.ready && !this.countdownTimer) {
-      this.startCountdown();
-    } else if ((!this.p1.ready || !this.p2.ready) && this.countdownTimer) {
-      this.cancelCountdown();
-    }
-
+    this.checkCountdown();
     this.render();
   }
 
@@ -69,23 +71,12 @@ export class OnlineLobby {
         audio.play('fight');
         clearInterval(this.countdownTimer);
         this.countdownTimer = null;
-        if (this.role === 'HOST' && this.onStartBattle) {
+        if (this.onStartBattle) {
           this.onStartBattle({
             settings: this.settings,
             p1Team: this.p1.team,
             p2Team: this.p2.team
           });
-        } else if (this.onStartBattle) {
-          // Guest gives host a 400ms window to broadcast BATTLE_INIT
-          setTimeout(() => {
-            if (this.onStartBattle) {
-              this.onStartBattle({
-                settings: this.settings,
-                p1Team: this.p1.team,
-                p2Team: this.p2.team
-              });
-            }
-          }, 400);
         }
       }
     }, 1000);
@@ -314,6 +305,7 @@ export class OnlineLobby {
         this.p1.ready = !this.p1.ready;
         audio.play('click');
         if (this.onUpdateSettings) this.onUpdateSettings({ p1: this.p1 });
+        this.checkCountdown();
         this.render();
       });
     }
@@ -327,6 +319,7 @@ export class OnlineLobby {
         this.p2.ready = !this.p2.ready;
         audio.play('click');
         if (this.onUpdateSettings) this.onUpdateSettings({ p2: this.p2 });
+        this.checkCountdown();
         this.render();
       });
     }
