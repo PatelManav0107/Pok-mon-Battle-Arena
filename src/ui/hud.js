@@ -17,6 +17,10 @@ export class BattleHud {
     this.isSwitchMenuOpen = false;
     this.isForcedSwitch = false;
     this.isSpectator = false;
+
+    this._lastMoveDeckKey = null;
+    this._lastSwitchKey = null;
+    this._lastUltKey = null;
   }
 
   update(state, isLocalP1 = true) {
@@ -167,56 +171,61 @@ export class BattleHud {
     const oppPoke = oppSide.team[oppSide.activeIdx];
 
     const grid = document.getElementById('moveButtonsGrid');
-    if (!grid) return;
+    if (!grid || !myPoke || !oppPoke) return;
 
-    grid.innerHTML = myPoke.moves.map((move, idx) => {
-      const style = TYPE_COLORS[move.type] || TYPE_COLORS.Normal;
-      const eff = getTypeEffectiveness(move.type, oppPoke.types);
-      const hasStab = myPoke.types.includes(move.type);
-      const cdLeft = myPoke.moveCooldowns[idx] || 0;
-      const baseCd = move.cd || 0;
-      const isDisabled = cdLeft > 0 || myPoke.fainted;
+    // Cache key for the move buttons grid
+    const moveDeckKey = `${myPoke.id}_${oppPoke.id}_${myPoke.moveCooldowns.join(',')}_${myPoke.fainted}`;
+    if (this._lastMoveDeckKey !== moveDeckKey) {
+      this._lastMoveDeckKey = moveDeckKey;
 
-      let effTag = '';
-      if (eff >= 2) effTag = `<span class="px-1.5 py-0.5 rounded bg-black/35 text-[10px] font-extrabold text-amber-200">${eff}× Super</span>`;
-      else if (eff === 0) effTag = `<span class="px-1.5 py-0.5 rounded bg-black/45 text-[10px] font-extrabold text-rose-200">0× Immune</span>`;
-      else if (eff < 1) effTag = `<span class="px-1.5 py-0.5 rounded bg-black/30 text-[10px] font-bold text-white/80">${eff}× Resist</span>`;
+      grid.innerHTML = myPoke.moves.map((move, idx) => {
+        const style = TYPE_COLORS[move.type] || TYPE_COLORS.Normal;
+        const eff = getTypeEffectiveness(move.type, oppPoke.types);
+        const hasStab = myPoke.types.includes(move.type);
+        const cdLeft = myPoke.moveCooldowns[idx] || 0;
+        const isDisabled = cdLeft > 0 || myPoke.fainted;
 
-      return `
-        <button id="moveBtn-${idx}" ${isDisabled ? 'disabled' : ''} class="btn-3d relative overflow-hidden rounded-2xl p-2.5 sm:p-3 text-left flex flex-col justify-between border-2 transition ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}"
-                style="background:${style.bg}; color:${style.text}; border-color:${style.border}; box-shadow: 0 5px 0 ${style.shadow};">
-          ${cdLeft > 0 ? `
-            <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-[1px] rounded-2xl flex flex-col items-center justify-center p-2 z-10 border-2 border-rose-500/60">
-              <span class="text-rose-300 font-display font-bold text-xs">⏳ CD: ${cdLeft}T LEFT</span>
+        let effTag = '';
+        if (eff >= 2) effTag = `<span class="px-1.5 py-0.5 rounded bg-black/35 text-[10px] font-extrabold text-amber-200">${eff}× Super</span>`;
+        else if (eff === 0) effTag = `<span class="px-1.5 py-0.5 rounded bg-black/45 text-[10px] font-extrabold text-rose-200">0× Immune</span>`;
+        else if (eff < 1) effTag = `<span class="px-1.5 py-0.5 rounded bg-black/30 text-[10px] font-bold text-white/80">${eff}× Resist</span>`;
+
+        return `
+          <button id="moveBtn-${idx}" ${isDisabled ? 'disabled' : ''} class="btn-3d relative overflow-hidden rounded-2xl p-2.5 sm:p-3 text-left flex flex-col justify-between border-2 transition ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}"
+                  style="background:${style.bg}; color:${style.text}; border-color:${style.border}; box-shadow: 0 5px 0 ${style.shadow};">
+            ${cdLeft > 0 ? `
+              <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-[1px] rounded-2xl flex flex-col items-center justify-center p-2 z-10 border-2 border-rose-500/60">
+                <span class="text-rose-300 font-display font-bold text-xs">⏳ CD: ${cdLeft}T LEFT</span>
+              </div>
+            ` : ''}
+            <div class="flex items-center justify-between gap-1">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="keycap-badge shrink-0">${idx + 1}</span>
+                <span class="font-display font-bold text-sm sm:text-base leading-tight truncate">${move.name}</span>
+              </div>
+              ${effTag}
             </div>
-          ` : ''}
-          <div class="flex items-center justify-between gap-1">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <span class="keycap-badge shrink-0">${idx + 1}</span>
-              <span class="font-display font-bold text-sm sm:text-base leading-tight truncate">${move.name}</span>
+            <div class="flex items-center justify-between text-[11px] font-extrabold mt-1.5 opacity-95">
+              <span class="uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/25">${move.type}${hasStab ? ' ★' : ''}</span>
+              <span>PWR ${move.power}</span>
             </div>
-            ${effTag}
-          </div>
-          <div class="flex items-center justify-between text-[11px] font-extrabold mt-1.5 opacity-95">
-            <span class="uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/25">${move.type}${hasStab ? ' ★' : ''}</span>
-            <span>PWR ${move.power}</span>
-          </div>
-        </button>
-      `;
-    }).join('');
+          </button>
+        `;
+      }).join('');
 
-    // Attach click events
-    myPoke.moves.forEach((_, idx) => {
-      const btn = document.getElementById(`moveBtn-${idx}`);
-      if (btn) btn.addEventListener('click', () => {
-        if (myPoke.moveCooldowns[idx] > 0) {
-          audio.play('cooldown_warn');
-          return;
-        }
-        audio.play('click');
-        if (this.onMoveSelected) this.onMoveSelected(idx);
+      // Attach click events
+      myPoke.moves.forEach((_, idx) => {
+        const btn = document.getElementById(`moveBtn-${idx}`);
+        if (btn) btn.addEventListener('click', () => {
+          if (myPoke.moveCooldowns[idx] > 0) {
+            audio.play('cooldown_warn');
+            return;
+          }
+          audio.play('click');
+          if (this.onMoveSelected) this.onMoveSelected(idx);
+        });
       });
-    });
+    }
 
     // Ultimate Button
     const ultContainer = document.getElementById('ultimateButtonContainer');
@@ -225,47 +234,52 @@ export class BattleHud {
       const charge = Math.round(mySide.ultCharge || 0);
       const ultCd = myPoke.ultCooldown || 0;
       const isReady = charge >= 100 && ultCd === 0 && !myPoke.fainted;
+      const ultKey = `${myPoke.id}_${ultCd}_${isReady}_${charge}`;
 
-      ultContainer.innerHTML = `
-        <button id="ultMoveBtn" ${!isReady ? 'disabled' : ''} class="btn-3d w-full relative overflow-hidden rounded-2xl p-2.5 sm:px-4 sm:py-2.5 border-2 text-left transition flex flex-col gap-1.5 ${
-          isReady
-            ? 'ult-btn-ready bg-gradient-to-r from-amber-500 via-rose-600 to-purple-700 text-white cursor-pointer'
-            : 'bg-slate-800/95 border-slate-700 text-slate-300 opacity-75'
-        }">
-          <div class="flex flex-wrap items-center justify-between gap-2 relative z-10">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="keycap-badge shrink-0">U / SPACE</span>
-              <span class="font-display font-black text-sm sm:text-base tracking-wide truncate ${isReady ? 'text-white' : 'text-amber-300'}">
-                🌟 ULTIMATE: ${ult.name}
-              </span>
-              <span class="hidden sm:inline-block text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-black/35 text-amber-100">
-                ${ult.type} • PWR ${ult.power}
-              </span>
-            </div>
-            <div>
-              ${ultCd > 0
-                ? `<span class="px-2 py-0.5 rounded-full bg-rose-950 border border-rose-400 text-rose-200 text-[10px] font-extrabold">⏳ CD: ${ultCd}T</span>`
-                : isReady
-                ? `<span class="px-2.5 py-0.5 rounded-full bg-amber-300 text-slate-950 text-[10px] font-black animate-bounce">★ READY!</span>`
-                : `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-600 text-amber-300 text-[10px] font-extrabold">⚡ ${charge}%</span>`}
-            </div>
-          </div>
-          <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-white/15 relative z-10">
-            <div class="h-full transition-all duration-300 bg-gradient-to-r from-amber-500 to-rose-500" style="width: ${charge}%"></div>
-          </div>
-        </button>
-      `;
+      if (this._lastUltKey !== ultKey) {
+        this._lastUltKey = ultKey;
 
-      const ultBtn = document.getElementById('ultMoveBtn');
-      if (ultBtn) {
-        ultBtn.addEventListener('click', () => {
-          if (!isReady) {
-            audio.play('cooldown_warn');
-            return;
-          }
-          audio.play('click');
-          if (this.onUltSelected) this.onUltSelected();
-        });
+        ultContainer.innerHTML = `
+          <button id="ultMoveBtn" ${!isReady ? 'disabled' : ''} class="btn-3d w-full relative overflow-hidden rounded-2xl p-2.5 sm:px-4 sm:py-2.5 border-2 text-left transition flex flex-col gap-1.5 ${
+            isReady
+              ? 'ult-btn-ready bg-gradient-to-r from-amber-500 via-rose-600 to-purple-700 text-white cursor-pointer'
+              : 'bg-slate-800/95 border-slate-700 text-slate-300 opacity-75'
+          }">
+            <div class="flex flex-wrap items-center justify-between gap-2 relative z-10">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="keycap-badge shrink-0">U / SPACE</span>
+                <span class="font-display font-black text-sm sm:text-base tracking-wide truncate ${isReady ? 'text-white' : 'text-amber-300'}">
+                  🌟 ULTIMATE: ${ult.name}
+                </span>
+                <span class="hidden sm:inline-block text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-black/35 text-amber-100">
+                  ${ult.type} • PWR ${ult.power}
+                </span>
+              </div>
+              <div>
+                ${ultCd > 0
+                  ? `<span class="px-2 py-0.5 rounded-full bg-rose-950 border border-rose-400 text-rose-200 text-[10px] font-extrabold">⏳ CD: ${ultCd}T</span>`
+                  : isReady
+                  ? `<span class="px-2.5 py-0.5 rounded-full bg-amber-300 text-slate-950 text-[10px] font-black animate-bounce">★ READY!</span>`
+                  : `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-600 text-amber-300 text-[10px] font-extrabold">⚡ ${charge}%</span>`}
+              </div>
+            </div>
+            <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-white/15 relative z-10">
+              <div class="h-full transition-all duration-300 bg-gradient-to-r from-amber-500 to-rose-500" style="width: ${charge}%"></div>
+            </div>
+          </button>
+        `;
+
+        const ultBtn = document.getElementById('ultMoveBtn');
+        if (ultBtn) {
+          ultBtn.addEventListener('click', () => {
+            if (!isReady) {
+              audio.play('cooldown_warn');
+              return;
+            }
+            audio.play('click');
+            if (this.onUltSelected) this.onUltSelected();
+          });
+        }
       }
     }
 
@@ -282,6 +296,7 @@ export class BattleHud {
     audio.play('click');
     this.isSwitchMenuOpen = true;
     this.isForcedSwitch = isForced;
+    this._lastSwitchKey = null;
     this.renderSwitchDrawer(mySide);
   }
 
@@ -289,6 +304,8 @@ export class BattleHud {
     if (this.isForcedSwitch) return;
     audio.play('click');
     this.isSwitchMenuOpen = false;
+    this._lastMoveDeckKey = null;
+    this._lastUltKey = null;
     const movePanel = document.getElementById('movePanel');
     const switchPanel = document.getElementById('switchPanel');
     if (movePanel) movePanel.classList.remove('hidden');
@@ -319,50 +336,58 @@ export class BattleHud {
     const grid = document.getElementById('switchTeamGrid');
     if (!grid) return;
 
-    grid.innerHTML = mySide.team.map((poke, idx) => {
-      const isCurrent = idx === mySide.activeIdx;
-      const isDisabled = isCurrent || poke.fainted;
-      const hpPercent = Math.max(0, Math.round((poke.hp / poke.maxHp) * 100));
+    const switchKey = `${this.isForcedSwitch}_${mySide.activeIdx}_` + mySide.team.map(p => `${p.id}_${p.hp}_${p.fainted}`).join(',');
+    if (this._lastSwitchKey !== switchKey) {
+      this._lastSwitchKey = switchKey;
 
-      return `
-        <button id="switchSlotBtn-${idx}" ${isDisabled ? 'disabled' : ''} class="btn-3d flex items-center justify-between p-2.5 rounded-xl border-2 text-left transition ${
-          isCurrent
-            ? 'bg-amber-500/20 border-amber-400 cursor-default'
-            : poke.fainted
-            ? 'bg-slate-800/40 border-slate-700 opacity-50 cursor-not-allowed'
-            : 'bg-slate-800 hover:bg-slate-700 border-slate-600'
-        }">
-          <div class="flex items-center gap-2.5 min-w-0">
-            <span class="keycap-badge shrink-0">${idx + 1}</span>
-            <img src="${getFrontSpriteUrl(poke.id)}" alt="${poke.name}" class="w-10 h-10 object-contain poke-sprite shrink-0" />
-            <div class="min-w-0">
-              <div class="font-display font-bold text-white text-sm truncate">${poke.name}</div>
-              <div class="flex gap-1 mt-0.5">
-                ${poke.types.map(t => this.typeBadgeHTML(t)).join('')}
+      grid.innerHTML = mySide.team.map((poke, idx) => {
+        const isCurrent = idx === mySide.activeIdx;
+        const isDisabled = isCurrent || poke.fainted;
+        const hpPercent = Math.max(0, Math.round((poke.hp / poke.maxHp) * 100));
+
+        return `
+          <button id="switchSlotBtn-${idx}" ${isDisabled ? 'disabled' : ''} class="btn-3d flex items-center justify-between p-2.5 rounded-xl border-2 text-left transition ${
+            isCurrent
+              ? 'bg-amber-500/20 border-amber-400 cursor-default'
+              : poke.fainted
+              ? 'bg-slate-800/40 border-slate-700 opacity-50 cursor-not-allowed'
+              : 'bg-slate-800 hover:bg-slate-700 border-slate-600'
+          }">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="keycap-badge shrink-0">${idx + 1}</span>
+              <img src="${getFrontSpriteUrl(poke.id)}" alt="${poke.name}" class="w-10 h-10 object-contain poke-sprite shrink-0" />
+              <div class="min-w-0">
+                <div class="font-display font-bold text-white text-sm truncate">${poke.name}</div>
+                <div class="flex gap-1 mt-0.5">
+                  ${poke.types.map(t => this.typeBadgeHTML(t)).join('')}
+                </div>
               </div>
             </div>
-          </div>
-          <div class="w-20 text-right shrink-0 ml-2">
-            <div class="text-xs font-bold text-slate-200">${poke.hp}/${poke.maxHp}</div>
-            <div class="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-1">
-              <div class="h-full bg-emerald-500" style="width:${hpPercent}%"></div>
+            <div class="w-20 text-right shrink-0 ml-2">
+              <div class="text-xs font-bold text-slate-200">${poke.hp}/${poke.maxHp}</div>
+              <div class="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-1">
+                <div class="h-full bg-emerald-500" style="width:${hpPercent}%"></div>
+              </div>
             </div>
-          </div>
-        </button>
-      `;
-    }).join('');
+          </button>
+        `;
+      }).join('');
 
-    // Attach switch click
-    mySide.team.forEach((poke, idx) => {
-      const btn = document.getElementById(`switchSlotBtn-${idx}`);
-      if (btn && !btn.disabled) {
-        btn.addEventListener('click', () => {
-          this.isSwitchMenuOpen = false;
-          audio.play('click');
-          if (this.onSwitchSelected) this.onSwitchSelected(idx);
-        });
-      }
-    });
+      // Attach switch click
+      mySide.team.forEach((poke, idx) => {
+        const btn = document.getElementById(`switchSlotBtn-${idx}`);
+        if (btn && !btn.disabled) {
+          btn.addEventListener('click', () => {
+            this.isSwitchMenuOpen = false;
+            this._lastSwitchKey = null;
+            this._lastMoveDeckKey = null;
+            this._lastUltKey = null;
+            audio.play('click');
+            if (this.onSwitchSelected) this.onSwitchSelected(idx);
+          });
+        }
+      });
+    }
   }
 
   appendLog(text, highlightClass = 'text-slate-200') {

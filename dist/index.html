@@ -182,7 +182,7 @@
     }
     .ult-cutin-portrait-anim { animation: cutinPortraitZoom 1.88s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
   </style>
-  <script type="module" crossorigin src="./assets/index-BrxYQSPE.js"></script>
+  <script type="module" crossorigin src="./assets/index-BWFuKHWM.js"></script>
 </head>
 <body class="flex flex-col min-h-screen w-full m-0 p-0 bg-slate-950 overflow-x-hidden select-none">
 
@@ -232,14 +232,14 @@
     <section id="draftScreen" class="hidden flex-1 flex flex-col w-full overflow-y-auto"></section>
 
     <!-- Screen 4: Battle Screen -->
-    <section id="battleScreen" class="hidden flex-1 flex flex-col justify-between w-full h-full">
+    <section id="battleScreen" class="hidden flex-1 flex flex-col justify-between w-full min-h-0 overflow-y-auto">
       <!-- 4-Quadrant Battle Field -->
-      <div id="battleSceneContainer" class="battle-scene w-full flex-1 min-h-[380px] sm:min-h-[460px] md:min-h-[500px] relative select-none overflow-hidden">
+      <div id="battleSceneContainer" class="battle-scene w-full flex-1 min-h-[260px] sm:min-h-[320px] md:min-h-[380px] relative select-none overflow-hidden">
         <canvas id="battleFxCanvas" class="absolute inset-0 w-full h-full pointer-events-none z-30"></canvas>
         <div id="pokeballFxLayer" class="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-hidden"></div>
 
         <!-- Stage Container to keep platforms and HUD centered and proportioned on wide screens -->
-        <div class="w-full max-w-6xl mx-auto h-full relative">
+        <div class="w-full max-w-6xl mx-auto absolute inset-0">
           <!-- QUADRANT 1 (TOP-LEFT): Opponent Status HUD -->
           <div class="absolute top-3 left-3 sm:top-5 sm:left-6 z-20">
             <div class="hud-card hud-card-enemy w-[215px] sm:w-[285px] p-2.5 sm:p-3.5">
