@@ -118,7 +118,7 @@ export class OnlineLobby {
     const shareUrl = `${window.location.origin}${window.location.pathname}?room=${this.roomCode}`;
 
     this.container.innerHTML = `
-      <div class="p-4 sm:p-6 bg-slate-900 flex flex-col gap-4 max-w-3xl mx-auto w-full">
+      <div class="p-4 sm:p-8 bg-slate-900 flex-1 flex flex-col justify-center gap-5 max-w-4xl mx-auto w-full my-auto">
         <!-- Room Code & Connection Banner -->
         <div class="bg-gradient-to-r from-slate-800 to-slate-900 border-2 border-amber-400/80 rounded-3xl p-5 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>

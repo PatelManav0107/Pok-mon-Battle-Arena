@@ -99,29 +99,29 @@ export class MainMenu {
     if (!this.container) return;
 
     this.container.innerHTML = `
-      <div class="p-6 sm:p-10 flex flex-col items-center justify-center text-center min-h-[540px] bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 relative overflow-hidden">
+      <div class="flex-1 w-full p-6 sm:p-12 flex flex-col items-center justify-center text-center bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 relative overflow-hidden">
         <!-- Floating Sprites Showcase -->
-        <div class="flex items-center justify-center gap-2 sm:gap-4 mb-4 flex-wrap">
-          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/6.png" class="w-16 h-16 poke-sprite idle-6" alt="Charizard" />
-          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/150.png" class="w-16 h-16 poke-sprite idle-150" alt="Mewtwo" />
-          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png" class="w-16 h-16 poke-sprite idle-25" alt="Pikachu" />
-          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/384.png" class="w-16 h-16 poke-sprite idle-384" alt="Rayquaza" />
-          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/448.png" class="w-16 h-16 poke-sprite idle-448" alt="Lucario" />
+        <div class="flex items-center justify-center gap-3 sm:gap-5 mb-5 flex-wrap">
+          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/6.png" class="w-16 h-16 sm:w-20 sm:h-20 poke-sprite idle-6" alt="Charizard" />
+          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/150.png" class="w-16 h-16 sm:w-20 sm:h-20 poke-sprite idle-150" alt="Mewtwo" />
+          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png" class="w-16 h-16 sm:w-20 sm:h-20 poke-sprite idle-25" alt="Pikachu" />
+          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/384.png" class="w-16 h-16 sm:w-20 sm:h-20 poke-sprite idle-384" alt="Rayquaza" />
+          <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/448.png" class="w-16 h-16 sm:w-20 sm:h-20 poke-sprite idle-448" alt="Lucario" />
         </div>
 
-        <div class="inline-block px-4 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-black uppercase tracking-widest mb-3">
+        <div class="inline-block px-4 py-1.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs sm:text-sm font-black uppercase tracking-widest mb-3">
           22 Pokémon • P2P WebRTC Online Multiplayer • 60Hz Sim
         </div>
 
-        <h2 class="font-display text-4xl sm:text-6xl font-bold text-white tracking-tight mb-3 drop-shadow-lg">
+        <h2 class="font-display text-4xl sm:text-7xl font-bold text-white tracking-tight mb-3 drop-shadow-lg">
           CHOOSE YOUR <span class="text-amber-400">BATTLE</span>
         </h2>
-        <p class="text-slate-300 max-w-lg text-sm sm:text-base mb-8 leading-relaxed">
+        <p class="text-slate-300 max-w-xl text-sm sm:text-base mb-8 leading-relaxed">
           Challenge friends online over the internet with zero server lag, draft balanced teams, and unleash 22 cinematic Anime Ultimate Overdrives!
         </p>
 
         <!-- 3 MODE SELECTION CARDS -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-4xl">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-5xl">
           <!-- 1P vs AI -->
           <button id="menu1PBtn" class="btn-3d flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 border-4 border-amber-200 shadow-[0_7px_0_#b45309]">
             <div class="text-4xl mb-2">🎮</div>

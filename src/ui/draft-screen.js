@@ -88,7 +88,7 @@ export class DraftScreen {
     const isReadyToStart = this.myDraftedIds.length === this.teamSize;
 
     this.container.innerHTML = `
-      <div class="p-4 sm:p-6 bg-slate-900 flex flex-col gap-4 max-w-5xl mx-auto w-full">
+      <div class="p-4 sm:p-8 bg-slate-900 flex-1 flex flex-col gap-4 max-w-7xl mx-auto w-full">
         <!-- Draft Header -->
         <div class="bg-slate-800 border-2 border-slate-700 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
           <div>
@@ -152,7 +152,7 @@ export class DraftScreen {
         </div>
 
         <!-- 22 Pokémon Pool Grid -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto pr-1">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[560px] overflow-y-auto pr-1">
           ${visiblePool.map(p => {
             const isPicked = this.myDraftedIds.includes(p.id);
             const pickNum = this.myDraftedIds.indexOf(p.id) + 1;

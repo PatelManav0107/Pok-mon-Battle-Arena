@@ -76,10 +76,44 @@ class GameApp {
       };
     }
 
-    const f3Btn = document.getElementById('f3DebugToggleBtn');
-    if (f3Btn) {
-      f3Btn.onclick = () => this.debug.toggle();
+    // Fullscreen Toggle Button
+    const fsBtn = document.getElementById('fullscreenToggleBtn');
+    if (fsBtn) {
+      const updateFsState = () => {
+        const isFs = !!document.fullscreenElement;
+        const icon = document.getElementById('fullscreenIcon');
+        const label = document.getElementById('fullscreenLabel');
+        if (icon) icon.textContent = isFs ? '✕' : '⛶';
+        if (label) label.textContent = isFs ? 'EXIT FULL' : 'FULLSCREEN';
+      };
+
+      fsBtn.onclick = async () => {
+        audio.play('click');
+        try {
+          if (!document.fullscreenElement) {
+            if (document.documentElement.requestFullscreen) {
+              await document.documentElement.requestFullscreen();
+            }
+          } else {
+            if (document.exitFullscreen) {
+              await document.exitFullscreen();
+            }
+          }
+        } catch (e) {
+          console.warn('Fullscreen request failed:', e);
+        }
+        updateFsState();
+      };
+
+      document.addEventListener('fullscreenchange', () => {
+        updateFsState();
+        if (this.fx) this.fx.resize();
+      });
     }
+
+    window.addEventListener('resize', () => {
+      if (this.fx) this.fx.resize();
+    });
 
     this.showScreen('startScreen');
     this.menu.init();
