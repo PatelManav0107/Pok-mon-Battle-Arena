@@ -151,6 +151,12 @@ export class NetworkManager {
         }
       };
 
+      const handleOpen = () => {
+        if (relConn.open) relOpen = true;
+        if (unrelConn.open) unrelOpen = true;
+        checkBothOpen();
+      };
+
       relConn.on('open', () => {
         relOpen = true;
         checkBothOpen();
@@ -161,6 +167,9 @@ export class NetworkManager {
         checkBothOpen();
       });
 
+      // Immediate check in case channels opened synchronously
+      handleOpen();
+
       relConn.on('error', (err) => {
         clearTimeout(timeout);
         reject(err);
@@ -168,12 +177,29 @@ export class NetworkManager {
     });
   }
 
+  // Safe wrapper around DataConnection.send
+  _safeSend(conn, data) {
+    if (conn && conn.open) {
+      if (conn.dataChannel && conn.dataChannel.readyState !== 'open') {
+        return false;
+      }
+      try {
+        conn.send(data);
+        return true;
+      } catch (err) {
+        console.warn('[PeerJS] Safe send suppressed:', err);
+        return false;
+      }
+    }
+    return false;
+  }
+
   // Handle incoming connections on Host
   handleIncomingConnection(conn) {
     const channel = conn.metadata?.channel || 'reliable';
     const role = conn.metadata?.role || 'GUEST';
 
-    conn.on('open', () => {
+    const onOpen = () => {
       if (role === 'SPECTATOR') {
         this.addSpectatorConnection(conn, channel);
       } else {
@@ -190,7 +216,13 @@ export class NetworkManager {
           if (this.onConnected) this.onConnected({ role: 'HOST', peerId: conn.peer, roomCode: this.roomCode });
         }
       }
-    });
+    };
+
+    if (conn.open) {
+      onOpen();
+    } else {
+      conn.on('open', onOpen);
+    }
 
     conn.on('close', () => {
       this.handlePeerClose(conn);
@@ -221,7 +253,7 @@ export class NetworkManager {
       this.packetsReceived++;
       if (msg.type === MSG_TYPES.HEARTBEAT) {
         // Echo back for ping measurement
-        conn.send({ ...msg, t2: performance.now() });
+        this._safeSend(conn, { ...msg, t2: performance.now() });
       } else if (msg.type === MSG_TYPES.LOBBY_STATE) {
         if (this.onLobbyState) this.onLobbyState(msg.data);
       } else if (msg.type === MSG_TYPES.REMATCH) {
@@ -271,15 +303,15 @@ export class NetworkManager {
 
   // Send input state from Guest to Host (60 Hz)
   sendInput(frame, action, inputDelay = 0) {
-    if (this.guestConnUnreliable && this.guestConnUnreliable.open) {
+    const packet = {
+      type: MSG_TYPES.INPUT_STATE,
+      frame,
+      action,
+      delay: inputDelay,
+      t: performance.now()
+    };
+    if (this._safeSend(this.guestConnUnreliable, packet)) {
       this.packetsSent++;
-      this.guestConnUnreliable.send({
-        type: MSG_TYPES.INPUT_STATE,
-        frame,
-        action,
-        delay: inputDelay,
-        t: performance.now()
-      });
     }
   }
 
@@ -290,13 +322,11 @@ export class NetworkManager {
       data: snapshot,
       t: performance.now()
     };
-    if (this.guestConnUnreliable && this.guestConnUnreliable.open) {
-      this.guestConnUnreliable.send(packet);
+    if (this._safeSend(this.guestConnUnreliable, packet)) {
       this.packetsSent++;
     }
     this.spectatorConns.forEach(spec => {
-      if (spec.unreliable && spec.unreliable.open) {
-        spec.unreliable.send(packet);
+      if (this._safeSend(spec.unreliable, packet)) {
         this.packetsSent++;
       }
     });
@@ -309,13 +339,9 @@ export class NetworkManager {
       event,
       t: performance.now()
     };
-    if (this.guestConnReliable && this.guestConnReliable.open) {
-      this.guestConnReliable.send(packet);
-    }
+    this._safeSend(this.guestConnReliable, packet);
     this.spectatorConns.forEach(spec => {
-      if (spec.reliable && spec.reliable.open) {
-        spec.reliable.send(packet);
-      }
+      this._safeSend(spec.reliable, packet);
     });
   }
 
@@ -326,16 +352,12 @@ export class NetworkManager {
       data: lobbyData
     };
     if (this.role === 'HOST') {
-      if (this.guestConnReliable && this.guestConnReliable.open) {
-        this.guestConnReliable.send(packet);
-      }
+      this._safeSend(this.guestConnReliable, packet);
       this.spectatorConns.forEach(spec => {
-        if (spec.reliable && spec.reliable.open) spec.reliable.send(packet);
+        this._safeSend(spec.reliable, packet);
       });
     } else {
-      if (this.guestConnReliable && this.guestConnReliable.open) {
-        this.guestConnReliable.send(packet);
-      }
+      this._safeSend(this.guestConnReliable, packet);
     }
   }
 
@@ -343,9 +365,9 @@ export class NetworkManager {
   startHeartbeatLoop() {
     this.stopHeartbeatLoop();
     this.heartbeatTimer = setInterval(() => {
-      if (this.role === 'GUEST' && this.guestConnReliable && this.guestConnReliable.open) {
+      if (this.role === 'GUEST') {
         this.lastHeartbeatSeq++;
-        this.guestConnReliable.send(createHeartbeatMessage(this.lastHeartbeatSeq, performance.now()));
+        this._safeSend(this.guestConnReliable, createHeartbeatMessage(this.lastHeartbeatSeq, performance.now()));
       }
     }, CONFIG.NET.HEARTBEAT_INTERVAL_MS);
   }

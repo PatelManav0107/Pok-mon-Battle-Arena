@@ -69,12 +69,23 @@ export class OnlineLobby {
         audio.play('fight');
         clearInterval(this.countdownTimer);
         this.countdownTimer = null;
-        if (this.onStartBattle) {
+        if (this.role === 'HOST' && this.onStartBattle) {
           this.onStartBattle({
             settings: this.settings,
             p1Team: this.p1.team,
             p2Team: this.p2.team
           });
+        } else if (this.onStartBattle) {
+          // Guest gives host a 400ms window to broadcast BATTLE_INIT
+          setTimeout(() => {
+            if (this.onStartBattle) {
+              this.onStartBattle({
+                settings: this.settings,
+                p1Team: this.p1.team,
+                p2Team: this.p2.team
+              });
+            }
+          }, 400);
         }
       }
     }, 1000);

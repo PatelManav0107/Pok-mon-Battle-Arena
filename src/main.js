@@ -253,9 +253,18 @@ class GameApp {
       if (role === 'HOST') {
         this.lobby.p2.connected = true;
         this.lobby.p2.name = 'Player 2';
+        this.lobby.render();
         this.net.sendLobbyState({
           p1: this.lobby.p1,
+          p2: this.lobby.p2,
           settings: this.lobby.settings
+        });
+      } else if (role === 'GUEST') {
+        this.lobby.p2.connected = true;
+        this.lobby.p2.name = 'Player 2 (You)';
+        this.lobby.render();
+        this.net.sendLobbyState({
+          p2: this.lobby.p2
         });
       }
       this.showScreen('lobbyScreen');
@@ -379,6 +388,10 @@ class GameApp {
 
   // --- LAUNCH BATTLE ---
   launchOnlineBattle(matchConfig) {
+    if (this.sim && !document.getElementById('battleScreen')?.classList.contains('hidden')) {
+      return;
+    }
+
     const isHost = this.net.role === 'HOST';
 
     if (isHost) {
@@ -528,5 +541,6 @@ class GameApp {
 // Instantiate and start app
 window.addEventListener('DOMContentLoaded', () => {
   const app = new GameApp();
+  window.app = app;
   app.init();
 });
