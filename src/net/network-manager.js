@@ -57,6 +57,7 @@ export class NetworkManager {
   // Initialize PeerJS
   initPeer(customId = null) {
     return new Promise((resolve, reject) => {
+      let isInitDone = false;
       const peerOptions = {
         debug: 1,
         config: {
@@ -71,17 +72,27 @@ export class NetworkManager {
       }
 
       const timeout = setTimeout(() => {
-        reject(new Error("PeerJS server connection timed out after 15 seconds. Check internet or WebRTC blocker."));
+        if (!isInitDone) {
+          isInitDone = true;
+          reject(new Error("PeerJS server connection timed out. Check internet connection or WebRTC blockers."));
+        }
       }, CONFIG.NET.CONNECTION_TIMEOUT_MS);
 
       this.peer.on('open', (id) => {
-        clearTimeout(timeout);
-        this.peerId = id;
-        resolve(id);
+        if (!isInitDone) {
+          isInitDone = true;
+          clearTimeout(timeout);
+          this.peerId = id;
+          resolve(id);
+        }
       });
 
       this.peer.on('error', (err) => {
-        clearTimeout(timeout);
+        if (!isInitDone) {
+          isInitDone = true;
+          clearTimeout(timeout);
+          reject(err);
+        }
         console.error('[PeerJS Error]', err);
         if (this.onError) this.onError(err);
       });
@@ -92,87 +103,110 @@ export class NetworkManager {
     });
   }
 
-  // HOST: Create a Room with 5-character code
-  async hostGame(desiredCode = null) {
-    const code = desiredCode ? desiredCode.toUpperCase() : NetworkManager.generateRoomCode();
-    const fullPeerId = `${CONFIG.APP_PREFIX}${code}`;
-    this.roomCode = code;
-    this.role = 'HOST';
+  // HOST: Create a Room with 5-character code (auto-retries if ID taken)
+  async hostGame(desiredCode = null, retries = 3) {
+    let attempt = 0;
+    while (attempt < retries) {
+      try {
+        const code = (desiredCode && attempt === 0) ? desiredCode.toUpperCase() : NetworkManager.generateRoomCode();
+        const fullPeerId = `${CONFIG.APP_PREFIX}${code}`;
+        this.roomCode = code;
+        this.role = 'HOST';
 
-    await this.initPeer(fullPeerId);
+        await this.initPeer(fullPeerId);
 
-    // Listen for incoming guest / spectator connections
-    this.peer.on('connection', (conn) => {
-      this.handleIncomingConnection(conn);
-    });
+        // Listen for incoming guest / spectator connections
+        this.peer.on('connection', (conn) => {
+          this.handleIncomingConnection(conn);
+        });
 
-    this.startHeartbeatLoop();
-    this.startMetricsMonitor();
-    return this.roomCode;
+        this.startHeartbeatLoop();
+        this.startMetricsMonitor();
+        return this.roomCode;
+      } catch (err) {
+        attempt++;
+        if (err.type === 'unavailable-id' && attempt < retries) {
+          console.warn(`[NetworkManager] Room ID collision, retrying with new code...`);
+          if (this.peer) {
+            try { this.peer.destroy(); } catch (_) {}
+            this.peer = null;
+          }
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   // GUEST: Join Room by 5-character code
   async joinGame(roomCode, isSpectator = false) {
-    this.roomCode = roomCode.toUpperCase();
+    this.roomCode = roomCode.toUpperCase().trim();
     this.role = isSpectator ? 'SPECTATOR' : 'GUEST';
+
+    // Disconnect old peer if any
+    if (this.peer) {
+      try { this.peer.destroy(); } catch (_) {}
+      this.peer = null;
+    }
 
     await this.initPeer();
     const hostPeerId = `${CONFIG.APP_PREFIX}${this.roomCode}`;
 
-    // Establish both Reliable and Unreliable data channels to Host
+    // Establish robust Data Connection to Host (Single connection prevents WebRTC glare & NAT drops)
     return new Promise((resolve, reject) => {
-      let timeout = setTimeout(() => {
-        reject(new Error("Could not connect to host within 15 seconds. Ensure the room code is correct and host is online."));
+      let isResolved = false;
+
+      const timeout = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+          reject(new Error(`Could not connect to room "${this.roomCode}" within 25 seconds. Ensure the code is correct and host is waiting in lobby.`));
+        }
       }, CONFIG.NET.CONNECTION_TIMEOUT_MS);
 
-      const relConn = this.peer.connect(hostPeerId, {
+      // Listen for peer-level errors (e.g. peer-unavailable)
+      const onPeerError = (err) => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeout);
+          let userMsg = err.message || 'Connection error';
+          if (err.type === 'peer-unavailable') {
+            userMsg = `Room "${this.roomCode}" was not found. Please check the code and ensure your friend is hosting.`;
+          }
+          reject(new Error(userMsg));
+        }
+      };
+      this.peer.once('error', onPeerError);
+
+      const conn = this.peer.connect(hostPeerId, {
         reliable: true,
         metadata: { channel: 'reliable', role: this.role }
       });
 
-      const unrelConn = this.peer.connect(hostPeerId, {
-        reliable: false,
-        metadata: { channel: 'unreliable', role: this.role }
-      });
-
-      let relOpen = false;
-      let unrelOpen = false;
-
-      const checkBothOpen = () => {
-        if (relOpen && unrelOpen) {
+      conn.on('open', () => {
+        if (!isResolved) {
+          isResolved = true;
           clearTimeout(timeout);
-          this.guestConnReliable = relConn;
-          this.guestConnUnreliable = unrelConn;
-          this.setupGuestListeners(relConn, unrelConn);
+          this.peer.off('error', onPeerError);
+          this.guestConnReliable = conn;
+          this.setupGuestListeners(conn);
           this.startHeartbeatLoop();
           this.startMetricsMonitor();
           if (this.onConnected) this.onConnected({ role: this.role, roomCode: this.roomCode });
           resolve();
         }
-      };
-
-      const handleOpen = () => {
-        if (relConn.open) relOpen = true;
-        if (unrelConn.open) unrelOpen = true;
-        checkBothOpen();
-      };
-
-      relConn.on('open', () => {
-        relOpen = true;
-        checkBothOpen();
       });
 
-      unrelConn.on('open', () => {
-        unrelOpen = true;
-        checkBothOpen();
+      conn.on('error', (err) => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeout);
+          this.peer.off('error', onPeerError);
+          reject(err);
+        }
       });
 
-      // Immediate check in case channels opened synchronously
-      handleOpen();
-
-      relConn.on('error', (err) => {
-        clearTimeout(timeout);
-        reject(err);
+      conn.on('close', () => {
+        this.handlePeerClose(conn);
       });
     });
   }
@@ -204,16 +238,11 @@ export class NetworkManager {
         this.addSpectatorConnection(conn, channel);
       } else {
         // Player 2 / Guest
-        if (channel === 'reliable') {
-          this.guestConnReliable = conn;
-          this.setupHostGuestReliable(conn);
-        } else {
-          this.guestConnUnreliable = conn;
-          this.setupHostGuestUnreliable(conn);
-        }
+        this.guestConnReliable = conn;
+        this.setupHostGuestReliable(conn);
 
-        if (this.guestConnReliable && this.guestConnUnreliable) {
-          if (this.onConnected) this.onConnected({ role: 'HOST', peerId: conn.peer, roomCode: this.roomCode });
+        if (this.onConnected) {
+          this.onConnected({ role: 'HOST', peerId: conn.peer, roomCode: this.roomCode });
         }
       }
     };
@@ -229,18 +258,25 @@ export class NetworkManager {
     });
   }
 
-  addSpectatorConnection(conn, channel) {
+  addSpectatorConnection(conn, channel = 'reliable') {
     let spec = this.spectatorConns.find(s => s.id === conn.peer);
     if (!spec) {
       if (this.spectatorConns.length >= CONFIG.SIM.MAX_SPECTATORS) {
         conn.close();
         return;
       }
-      spec = { id: conn.peer, reliable: null, unreliable: null };
+      spec = { id: conn.peer, reliable: conn, unreliable: conn };
       this.spectatorConns.push(spec);
+    } else {
+      spec.reliable = conn;
     }
-    if (channel === 'reliable') spec.reliable = conn;
-    else spec.unreliable = conn;
+
+    conn.on('close', () => {
+      this.spectatorConns = this.spectatorConns.filter(s => s.id !== conn.peer);
+      if (this.onSpectatorCountChange) {
+        this.onSpectatorCountChange(this.spectatorConns.length);
+      }
+    });
 
     if (this.onSpectatorCountChange) {
       this.onSpectatorCountChange(this.spectatorConns.length);
@@ -256,25 +292,21 @@ export class NetworkManager {
         this._safeSend(conn, { ...msg, t2: performance.now() });
       } else if (msg.type === MSG_TYPES.LOBBY_STATE) {
         if (this.onLobbyState) this.onLobbyState(msg.data);
-      } else if (msg.type === MSG_TYPES.REMATCH) {
+      } else if (msg.type === MSG_TYPES.INPUT_STATE) {
+        // Host receives guest combat actions
+        if (this.onGuestInput) this.onGuestInput(msg);
+      } else if (msg.type === MSG_TYPES.GAME_EVENT) {
+        if (this.onGameEvent) this.onGameEvent(msg.event);
+      } else if (msg.type === MSG_TYPES.REMATCH_ACCEPT) {
+        if (this.onGameEvent) this.onGameEvent({ type: 'REMATCH_ACCEPTED' });
+      } else if (msg.type === MSG_TYPES.REMATCH_REQUEST) {
         if (this.onGameEvent) this.onGameEvent({ type: 'REMATCH_REQUEST', from: 'guest' });
       }
     });
   }
 
-  setupHostGuestUnreliable(conn) {
+  setupGuestListeners(conn) {
     conn.on('data', (msg) => {
-      if (!msg) return;
-      this.packetsReceived++;
-      if (msg.type === MSG_TYPES.INPUT_STATE) {
-        // Host only receives guest input actions, NEVER direct state changes
-        if (this.onGuestInput) this.onGuestInput(msg);
-      }
-    });
-  }
-
-  setupGuestListeners(relConn, unrelConn) {
-    relConn.on('data', (msg) => {
       if (!msg) return;
       this.packetsReceived++;
       if (msg.type === MSG_TYPES.HEARTBEAT) {
@@ -286,19 +318,13 @@ export class NetworkManager {
         if (this.onGameEvent) this.onGameEvent(msg.event);
       } else if (msg.type === MSG_TYPES.LOBBY_STATE) {
         if (this.onLobbyState) this.onLobbyState(msg.data);
-      }
-    });
-
-    unrelConn.on('data', (msg) => {
-      if (!msg) return;
-      this.packetsReceived++;
-      if (msg.type === MSG_TYPES.SNAPSHOT) {
+      } else if (msg.type === MSG_TYPES.SNAPSHOT) {
         this.snapshotsReceived++;
         if (this.onSnapshot) this.onSnapshot(msg.data, performance.now());
       }
     });
 
-    relConn.on('close', () => this.handlePeerClose(relConn));
+    conn.on('close', () => this.handlePeerClose(conn));
   }
 
   // Send input state from Guest to Host (60 Hz)
@@ -310,7 +336,8 @@ export class NetworkManager {
       delay: inputDelay,
       t: performance.now()
     };
-    if (this._safeSend(this.guestConnUnreliable, packet)) {
+    const conn = this.guestConnUnreliable || this.guestConnReliable;
+    if (this._safeSend(conn, packet)) {
       this.packetsSent++;
     }
   }
@@ -322,11 +349,13 @@ export class NetworkManager {
       data: snapshot,
       t: performance.now()
     };
-    if (this._safeSend(this.guestConnUnreliable, packet)) {
+    const conn = this.guestConnUnreliable || this.guestConnReliable;
+    if (this._safeSend(conn, packet)) {
       this.packetsSent++;
     }
     this.spectatorConns.forEach(spec => {
-      if (this._safeSend(spec.unreliable, packet)) {
+      const specConn = spec.unreliable || spec.reliable;
+      if (this._safeSend(specConn, packet)) {
         this.packetsSent++;
       }
     });

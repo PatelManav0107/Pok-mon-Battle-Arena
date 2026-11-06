@@ -382,7 +382,8 @@ class GameApp {
       this.lobby.setRole(isSpectator ? 'SPECTATOR' : 'GUEST', code);
       this.showScreen('lobbyScreen');
     } catch (err) {
-      alert(`Error joining room: ${err.message}`);
+      console.error('[App] Failed to join online game:', err);
+      throw err;
     }
   }
 

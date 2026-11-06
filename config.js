@@ -4,7 +4,7 @@
  */
 export const CONFIG = {
   // Application Version & Room Namespace Prefix
-  APP_PREFIX: 'PKMN-',
+  APP_PREFIX: 'PKMN-ARENA-V1-',
   ROOM_CODE_LENGTH: 5,
 
   // Simulation Engine Constants (Step 0)
@@ -21,24 +21,35 @@ export const CONFIG = {
   // Network & PeerJS Options
   NET: {
     HEARTBEAT_INTERVAL_MS: 2000, // 2-second heartbeat
-    CONNECTION_TIMEOUT_MS: 15000,// 15-second timeout for P2P connection
+    CONNECTION_TIMEOUT_MS: 25000,// 25-second timeout for cross-device P2P connection
     RECONNECT_WINDOW_MS: 10000,  // 10-second grace window to reconnect
     INTERPOLATION_OFFSET_MS: 100,// 100ms client interpolation delay buffer
     DEFAULT_INPUT_DELAY_FRAMES: 1,// 0 to 6 frames optional delay
     MAX_INPUT_DELAY_FRAMES: 6,
 
-    // Public Google & Mozilla STUN servers + Optional custom TURN
+    // Public Google, Mozilla & Metered OpenRelay STUN/TURN servers for NAT/Firewall traversal
     ICE_SERVERS: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
       { urls: 'stun:stun.services.mozilla.com' },
-      // Optional: Add your custom TURN server credentials below:
-      // {
-      //   urls: 'turn:turn.example.com:3478',
-      //   username: 'user',
-      //   credential: 'password'
-      // }
+      { urls: 'stun:relay.metered.ca:80' },
+      // OpenRelay Free Community TURN (Supports UDP & TCP Port 443 for mobile/cellular carriers)
+      {
+        urls: 'turn:relay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:relay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:relay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
     ]
   }
 };

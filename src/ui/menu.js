@@ -39,9 +39,19 @@ export class MainMenu {
     modal.innerHTML = `
       <div class="bg-slate-900 border-4 border-cyan-400 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl relative">
         <h3 class="font-display font-black text-2xl text-white mb-2">JOIN ONLINE ROOM</h3>
-        <p class="text-xs text-slate-300 mb-5">
+        <p class="text-xs text-slate-300 mb-4">
           Enter the 5-character room code from your friend to battle or watch.
         </p>
+
+        ${prefilledCode ? `
+          <div class="bg-amber-500/15 border border-amber-400/60 rounded-2xl p-3 mb-4 text-center">
+            <span class="text-[11px] text-amber-300 font-extrabold uppercase tracking-wider">🎮 Battle Invitation</span>
+            <div class="font-display font-black text-3xl text-amber-400 tracking-widest my-1">${prefilledCode}</div>
+            <span class="text-[10px] text-amber-200/90 font-medium">Click "Join as Player" below to connect with your friend!</span>
+          </div>
+        ` : ''}
+
+        <div id="joinErrorBanner" class="hidden mb-4 bg-rose-950/90 border border-rose-500 text-rose-200 text-xs p-3 rounded-xl font-bold text-left animate-pulse"></div>
 
         <div class="space-y-4 mb-6">
           <div>
@@ -51,7 +61,7 @@ export class MainMenu {
           </div>
 
           <div class="flex items-center gap-3">
-            <button id="joinAsPlayerBtn" class="btn-3d flex-1 py-3 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-600 text-white font-display font-bold text-sm border-2 border-cyan-200 shadow-[0_4px_0_#1e3a8a]">
+            <button id="joinAsPlayerBtn" class="btn-3d flex-1 py-3 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-300 text-white font-display font-bold text-sm border-2 border-cyan-200 shadow-[0_4px_0_#1e3a8a] flex items-center justify-center">
               ⚔️ Join as Player
             </button>
             <button id="joinAsSpectatorBtn" class="btn-3d flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-display font-bold text-sm border-2 border-slate-600">
@@ -68,27 +78,58 @@ export class MainMenu {
     modal.classList.remove('hidden');
 
     const input = document.getElementById('joinCodeInput');
-    if (input) input.focus();
+    const playerBtn = document.getElementById('joinAsPlayerBtn');
+    const specBtn = document.getElementById('joinAsSpectatorBtn');
+    const errBanner = document.getElementById('joinErrorBanner');
 
-    document.getElementById('joinAsPlayerBtn').onclick = () => {
+    if (input) {
+      input.focus();
+      input.oninput = () => {
+        input.value = input.value.toUpperCase();
+        input.classList.remove('border-rose-500');
+        if (errBanner) errBanner.classList.add('hidden');
+      };
+    }
+
+    const executeJoin = async (isSpectator) => {
       const code = input.value.trim().toUpperCase();
-      if (code.length === 5) {
-        modal.classList.add('hidden');
-        if (this.onJoinOnline) this.onJoinOnline(code, false);
-      } else {
+      if (code.length !== 5) {
         input.classList.add('border-rose-500');
+        if (errBanner) {
+          errBanner.textContent = 'Please enter a valid 5-character room code.';
+          errBanner.classList.remove('hidden');
+        }
+        return;
+      }
+
+      audio.play('click');
+      if (errBanner) errBanner.classList.add('hidden');
+
+      const activeBtn = isSpectator ? specBtn : playerBtn;
+      const originalText = activeBtn.innerHTML;
+      activeBtn.disabled = true;
+      (isSpectator ? playerBtn : specBtn).disabled = true;
+      activeBtn.innerHTML = '<span class="inline-block animate-spin mr-1.5">⏳</span> Connecting to host...';
+
+      try {
+        if (this.onJoinOnline) {
+          await this.onJoinOnline(code, isSpectator);
+        }
+        modal.classList.add('hidden');
+      } catch (err) {
+        if (errBanner) {
+          errBanner.textContent = err.message || 'Failed to connect to room. Please check the code.';
+          errBanner.classList.remove('hidden');
+        }
+      } finally {
+        activeBtn.disabled = false;
+        (isSpectator ? playerBtn : specBtn).disabled = false;
+        activeBtn.innerHTML = originalText;
       }
     };
 
-    document.getElementById('joinAsSpectatorBtn').onclick = () => {
-      const code = input.value.trim().toUpperCase();
-      if (code.length === 5) {
-        modal.classList.add('hidden');
-        if (this.onJoinOnline) this.onJoinOnline(code, true);
-      } else {
-        input.classList.add('border-rose-500');
-      }
-    };
+    playerBtn.onclick = () => executeJoin(false);
+    specBtn.onclick = () => executeJoin(true);
 
     document.getElementById('closeJoinModalBtn').onclick = () => {
       modal.classList.add('hidden');

@@ -93,21 +93,56 @@ export class OnlineLobby {
 
   copyRoomCode() {
     audio.play('click');
-    navigator.clipboard.writeText(this.roomCode).then(() => {
-      const btn = document.getElementById('copyCodeBtn');
-      if (btn) btn.textContent = '✓ Copied!';
-      setTimeout(() => { if (btn) btn.textContent = '📋 Copy Code'; }, 2000);
-    });
+    this._copyText(this.roomCode, 'copyCodeBtn', '✓ Copied!', '📋 Copy Code');
   }
 
   copyShareLink() {
     audio.play('click');
     const url = `${window.location.origin}${window.location.pathname}?room=${this.roomCode}`;
-    navigator.clipboard.writeText(url).then(() => {
-      const btn = document.getElementById('copyLinkBtn');
-      if (btn) btn.textContent = '✓ Link Copied!';
-      setTimeout(() => { if (btn) btn.textContent = '🔗 Share Link'; }, 2000);
-    });
+    if (navigator.share) {
+      navigator.share({
+        title: 'Pokémon Battle Arena',
+        text: `⚔️ Battle me in Pokémon Battle Arena! Room Code: ${this.roomCode}`,
+        url: url
+      }).catch(() => {
+        this._copyText(url, 'copyLinkBtn', '✓ Link Copied!', '🔗 Share Link');
+      });
+    } else {
+      this._copyText(url, 'copyLinkBtn', '✓ Link Copied!', '🔗 Share Link');
+    }
+  }
+
+  _copyText(text, btnId, successLabel, defaultLabel) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById(btnId);
+        if (btn) btn.textContent = successLabel;
+        setTimeout(() => { if (btn) btn.textContent = defaultLabel; }, 2000);
+      }).catch(() => {
+        this._fallbackCopy(text, btnId, successLabel, defaultLabel);
+      });
+    } else {
+      this._fallbackCopy(text, btnId, successLabel, defaultLabel);
+    }
+  }
+
+  _fallbackCopy(text, btnId, successLabel, defaultLabel) {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      const btn = document.getElementById(btnId);
+      if (btn) btn.textContent = successLabel;
+      setTimeout(() => { if (btn) btn.textContent = defaultLabel; }, 2000);
+    } catch {
+      prompt('Copy this to share with your friend:', text);
+    }
   }
 
   render() {
